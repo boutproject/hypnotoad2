@@ -2,6 +2,7 @@ import numpy as np
 from io import StringIO
 
 from hypnotoad.cases import tokamak
+from hypnotoad.core.mesh import BoutMesh
 from hypnotoad.geqdsk import _geqdsk
 
 
@@ -71,7 +72,7 @@ def test_tokamak_interpolations():
         )
 
 
-def test_read_geqdsk():
+def test_read_geqdsk(tmpdir):
     # Number of mesh points
     nx = 65
     ny = 65
@@ -142,8 +143,8 @@ def test_read_geqdsk():
     # Move to the beginning of the buffer
     output.seek(0)
 
-    # Read geqdsk from StringIO. Don't create the regions
-    eq = tokamak.read_geqdsk(output, make_regions=False)
+    # Read geqdsk from StringIO
+    eq = tokamak.read_geqdsk(output)
 
     # Check interpolation of psi, f and f' at some locations
     for r, z in [(1.2, 0.1), (1.6, -0.4), (1.8, 0.9)]:
@@ -171,6 +172,19 @@ def test_read_geqdsk():
             dpsi_dz(r, z) / (dpsi_dr(r, z) ** 2 + dpsi_dz(r, z) ** 2),
             rtol=1e-3,
         )
+
+    # Create BoutMesh
+    mesh = BoutMesh(eq, {})
+
+    # Write to temporary directory
+    gridfile_name = tmpdir.join("bout.grd.nc")
+    mesh.writeGridFile(gridfile_name)
+
+    # Check geqdsk input was save correctly
+    with DataFile(gridfile_name) as f:
+        geqdsk_str = f["hypnotoad_geqdsk_file_contents"]
+    output.seek(0)
+    assert geqdsk_str == output.read()
 
 
 def test_bounding():
